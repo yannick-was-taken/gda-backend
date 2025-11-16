@@ -1,9 +1,15 @@
-from flask import Flask, jsonify, request
+from quart import Quart, g, jsonify, request
 from model import GlobalStats, User
 import json
 import os
 
-app = Flask(__name__)
+app = Quart(__name__)
+
+# Enforce only one worker
+worker_count = os.environ.get("HYPERCORN_WORKER_ID")
+if worker_count is not None:
+    if int(worker_count) != 0:
+        raise RuntimeError("This app must be run with exactly one worker (HYPERCORN_WORKER_ID != 0)")
 
 def check_permissions(*args):
     def w1(f):
@@ -16,7 +22,7 @@ def check_permissions(*args):
                     break
             else:
                 return jsonify({"error": 401, "message": "unauthorized"}), 401
-            request.user = user
+            g.user = user
             for needed in args:
                 if not user.has_perm(needed):
                     return jsonify({"error": 403, "message": f"forbidden {needed}"}), 403
@@ -26,25 +32,25 @@ def check_permissions(*args):
     return w1
 
 @app.route("/")
-def index():
+async def index():
     return "https://www.youtube.com/watch?v=3X-iqFRGqbc"
 
 @app.route("/whoami")
 @check_permissions()
-def whoami():
-    return jsonify(request.user.dump(include_secrets=False))
+async def whoami():
+    return jsonify(g.user.dump(include_secrets=False))
 
 @app.route("/stats")
 @check_permissions()
-def stats():
+async def stats():
     return jsonify({
         "personal": {
             "checks": {
-                "total": request.user.total_checks,
-                "german": request.user.total_german,
-                "banned": request.user.total_banned,
+                "total": g.user.total_checks,
+                "german": g.user.total_german,
+                "banned": g.user.total_banned,
             },
-            "cost": request.user.total_cost,
+            "cost": g.user.total_cost,
         },
         "global": {
             "checks": {
@@ -58,7 +64,7 @@ def stats():
 
 @app.route("/check/<uuid>/<username>")
 @check_permissions()
-def check(uuid, username):
+async def check(uuid, username):
     if username == "TheRat":
         return jsonify({
             "language": {
@@ -109,7 +115,8 @@ def check(uuid, username):
             "message": "Spieler nicht gefunden",
         }), 404
 
-def create_runtime():
+@app.before_serving
+async def create_runtime():
     User.load_users()
     print(f"[GDA] Loaded {len(User.ALL)} users")
     print("[GDA] Runtime created")
