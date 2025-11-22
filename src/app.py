@@ -1,9 +1,13 @@
 from quart import Quart, g, jsonify, request
-from model import GlobalStats, User
+from model import GlobalStats, Player, PlayerInferState, User
 import json
 import os
+import time
 
 app = Quart(__name__)
+
+# COOLDOWN_TIME = 12 * 60 * 60  # 12 hours
+COOLDOWN_TIME = 10 * 60  # 10 minutes (for testing)
 
 # Enforce only one worker
 worker_count = os.environ.get("HYPERCORN_WORKER_ID")
@@ -65,55 +69,56 @@ async def stats():
 @app.route("/check/<uuid>/<username>")
 @check_permissions()
 async def check(uuid, username):
-    if username == "TheRat":
+    if uuid in Player.ALL:
+        player = Player.ALL[uuid]
+        if player.last_name != username:
+            player.last_name = username
+            await player.infer_language(g.user)
+    else:
+        player = Player(uuid, {"last_name": username})
+        Player.ALL[uuid] = player
+        await player.infer_language(g.user)
+
+    if player.language != "german":
         return jsonify({
             "language": {
-                "verdict": "english",
-                "source": "llm",
-                "reason": "Das Wort 'Rat' beschreibt den Inhalt dieses Moduls. Hihi :)",
+                "verdict": player.language,
+                "source": player.language_source(),
+                "reason": player.infer_reason,
             },
-            "banned": False,
-            "cooldown": 139,
-            "guild": "BaaDz9",
         })
-    elif username == "DieRatte":
+
+    if await player.is_banned(g.user):
         return jsonify({
             "language": {
-                "verdict": "german",
-                "source": "database",
-                "reason": "Gesehen auf: deutscher-server.mc:25565",
-            },
-            "banned": False,
-            "cooldown": 0,
-            "guild": None,
-        })
-    elif username == "BoeserBube":
-        return jsonify({
-            "language": {
-                "verdict": "german",
-                "source": "database",
-                "reason": "Verifiziert auf GooDz-Discord",
+                "verdict": player.language,
+                "source": player.language_source(),
+                "reason": player.infer_reason,
             },
             "banned": True,
-            "cooldown": 0,
-            "guild": None,
         })
-    elif username == "arrayen":
+
+    now = int(time.time())
+    if now - player.cooldown_since < COOLDOWN_TIME:
         return jsonify({
             "language": {
-                "verdict": "unknown",
-                "source": "database",
-                "reason": "Manueller Eintrag (Blacklist)",
+                "verdict": player.language,
+                "source": player.language_source(),
+                "reason": player.infer_reason,
+            },
+            "banned": False,
+            "cooldown": player.cooldown_since + COOLDOWN_TIME - now,
+        })
+    player.set_cooldown(now)
+    return jsonify({
+            "language": {
+                "verdict": player.language,
+                "source": player.language_source(),
+                "reason": player.infer_reason,
             },
             "banned": False,
             "cooldown": 0,
-            "guild": "GooDz4",
-        })
-    else:
-        return jsonify({
-            "error": 404,
-            "message": "Spieler nicht gefunden",
-        }), 404
+    })
 
 @app.before_serving
 async def create_runtime():

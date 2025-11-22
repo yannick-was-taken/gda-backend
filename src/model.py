@@ -49,28 +49,49 @@ class Player:
 
     infer_state: int
     language: str
+    infer_reason: str
     cooldown_since: int
 
-    banned: bool
-    last_ban_check: int
+    was_banned: bool
 
     def __init__(self, uuid: str, profile) -> None:
         self.uuid = uuid
         self.last_name = profile.get("last_name", "")
         self.infer_state = profile.get("infer_state", PlayerInferState.INFER)
         self.language = profile.get("language", "unknown")
+        self.infer_reason = profile.get("infer_reason", "")
         self.cooldown_since = profile.get("cooldown_since", 0)
-        self.banned = profile.get("banned", False)
-        self.last_ban_check = profile.get("last_ban_check", 0)
+        self.was_banned = profile.get("was_banned", False)
+
+    def language_source(self) -> str:
+        if infer_state == PlayerInferState.ALLOWLIST:
+            return "database"
+        elif infer_state == PlayerInferState.BLOCKLIST:
+            return "blocklist"
+        else:
+            return "infer"
+
+    async def is_banned(self, checker: User) -> bool:
+        # TODO update was_banned and stats accordingly
+        pass # TODO
+
+    async def infer_language(self, checker: User) -> None:
+        # TODO inc global stats & user stats
+        # TODO save
+        pass # TODO
+
+    def set_cooldown(self, cd: int) -> None:
+        self.cooldown_since = cd
+        # TODO save
 
     def dump(self):
         return {
             "last_name": self.last_name,
             "infer_state": self.infer_state,
             "language": self.language,
+            "infer_reason": self.infer_reason,
             "cooldown_since": self.cooldown_since,
-            "banned": self.banned,
-            "last_ban_check": self.last_ban_check,
+            "was_banned": self.was_banned,
         }
 
     @classmethod
