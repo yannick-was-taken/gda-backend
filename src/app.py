@@ -15,9 +15,9 @@ if worker_count is not None:
     if int(worker_count) != 0:
         raise RuntimeError("This app must be run with exactly one worker (HYPERCORN_WORKER_ID != 0)")
 
-def check_permissions(*args):
+def check_permissions(*perms):
     def w1(f):
-        def w2(*args, **kwargs):
+        async def w2(*args, **kwargs):
             key = request.headers.get("X-Api-Key")
             if not key:
                 return jsonify({"error": 401, "message": "unauthorized (api key missing)"}), 401
@@ -27,10 +27,10 @@ def check_permissions(*args):
             else:
                 return jsonify({"error": 401, "message": "unauthorized"}), 401
             g.user = user
-            for needed in args:
+            for needed in perms:
                 if not user.has_perm(needed):
                     return jsonify({"error": 403, "message": f"forbidden {needed}"}), 403
-            return f(*args, **kwargs)
+            return await f(*args, **kwargs)
         w2.__name__ = f.__name__
         return w2
     return w1
