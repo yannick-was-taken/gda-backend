@@ -108,6 +108,8 @@ class Player:
 
     async def infer_language(self, checker: User) -> None:
         # TODO inc global stats & user stats
+        self.language = "german"
+        self.infer_reason = "weil ich es sage wallah"
         pass # TODO
 
     def dump(self):
