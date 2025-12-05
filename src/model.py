@@ -5,10 +5,19 @@ import aiohttp
 import json
 import os
 
+
+OPEN_AI = "https://api.openai.com/v1/chat/completions"
+
+# As of 2025-12-05
+PRICE_PER_1M_INPUT = 0.1
+PRICE_PER_1M_OUTPUT = 0.4
+
+
 class Config:
     CONFIG_FILE = "/app/config/config.secret.json"
 
     ban_api: str = "https://api.example.com/check/"
+    open_ai_key: str = "hunter2"
 
     @classmethod
     def load(cls) -> None:
@@ -18,16 +27,18 @@ class Config:
             with open(cls.CONFIG_FILE, "r") as f:
                 data = json.load(f)
                 cls.ban_api = data.get("ban_api", "")
+                cls.open_ai_key = data.get("open_ai_key", "")
 
     @classmethod
     def save(cls) -> None:
         data = {
             "ban_api": cls.ban_api,
+            "open_ai_key": cls.open_ai_key,
         }
         with open(cls.CONFIG_FILE, "w") as f:
             json.dump(data, f)
 
-class PlayerInferState(Enum):
+class PlayerInferState:
     INFER = 0
     ALLOWLIST = 1
     BLOCKLIST = 2
@@ -38,7 +49,7 @@ class GlobalStats:
     total_checks: int = 0
     total_german: int = 0
     total_banned: int = 0
-    total_cost: int = 0
+    total_cost: float = 0.0
 
     @classmethod
     def load_stats(cls) -> None:
@@ -50,7 +61,7 @@ class GlobalStats:
                 cls.total_checks = data.get("checks", 0)
                 cls.total_german = data.get("german", 0)
                 cls.total_banned = data.get("banned", 0)
-                cls.total_cost = data.get("cost", 0)
+                cls.total_cost = data.get("cost", 0.0)
 
     @classmethod
     def save_stats(cls) -> None:
@@ -108,10 +119,52 @@ class Player:
         return False
 
     async def infer_language(self, checker: User) -> None:
-        # TODO inc global stats & user stats
-        self.language = "german"
-        self.infer_reason = "weil ich es sage wallah"
-        pass # TODO
+        if self.infer_state == PlayerInferState.ALLOWLIST:
+            self.language = "german"
+            self.infer_reason = ""
+        elif self.infer_state == PlayerInferState.BLOCKLIST:
+            self.language = "unknown"
+            self.infer_reason = ""
+        else:
+            headers = {
+                "Authorization": f"Bearer {Config.open_ai_key}",
+                "Content-Type": "application/json",
+            }
+            data = {
+                "model": "gpt-4.1-nano",
+                "messages": [{
+                    "role": "user",
+                    "content": f"You are given the user name '{self.last_name}'. Determine the language the user name is written in, formatted like e.g. 'dutch | <reasoning>'. Give a very short reason for the decision in german. If the language cannot be determined with high confidence, output only 'unknown'.",
+                }],
+                "temperature": 0,
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(OPEN_AI, json=data, headers=headers) as resp:
+                    if resp.status != 200:
+                        txt = await resp.text()
+                        print(f"[GDA] {OPEN_AI} reported HTTP {resp.status} with {txt}")
+                        raise Exception("language inferring failed")
+                    data = await resp.json()
+            reply = data["choices"][0]["message"]["content"]
+
+            if "usage" in data:
+                cost = PRICE_PER_1M_INPUT * data["usage"]["prompt_tokens"] / 1000000
+                cost += PRICE_PER_1M_OUTPUT * data["usage"]["completion_tokens"] / 1000000
+                GlobalStats.total_cost += cost
+                checker.total_cost += cost
+            else:
+                cost = 0.0
+
+            print(f"[GDA] OpenAI reported '{reply}' for '{self.last_name}' [-${cost:.2f} Rente für Rayen]")
+            parts = reply.split("|", 1)
+
+            if parts[0] == "german" and self.language != "german":
+                GlobalStats.total_german += 1
+                checker.total_german += 1
+            self.language = parts[0]
+            if len(parts) == 2:
+                self.infer_reason = parts[1]
 
     def dump(self):
         return {
@@ -153,7 +206,7 @@ class User:
     total_checks: int
     total_german: int
     total_banned: int
-    total_cost: int
+    total_cost: float
 
     def __init__(self, profile) -> None:
         self.name = profile.get("name", "<unknown>")
@@ -163,7 +216,7 @@ class User:
         self.total_checks = stats.get("checks", 0)
         self.total_german = stats.get("german", 0)
         self.total_banned = stats.get("banned", 0)
-        self.total_cost = stats.get("cost", 0)
+        self.total_cost = stats.get("cost", 0.0)
 
     def has_perm(self, needed: str) -> bool:
         return needed in self.perms

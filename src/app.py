@@ -74,7 +74,14 @@ async def check(uuid, username):
         if player.last_name != username:
             print(f"[GDA] {uuid} ({username}): Old name {player.last_name}")
             player.last_name = username
-            await player.infer_language(g.user)
+            try:
+                await player.infer_language(g.user)
+            except Exception as e:
+                print(f"[GDA] Error inferring language for {username}: {e}")
+                return jsonify({
+                    "error": "500",
+                    "message": "Could not infer language",
+                }), 500
     else:
         print(f"[GDA] {uuid} ({username}): First check")
         GlobalStats.total_checks += 1
@@ -82,7 +89,14 @@ async def check(uuid, username):
 
         player = Player(uuid, {"last_name": username})
         Player.ALL[uuid] = player
-        await player.infer_language(g.user)
+        try:
+            await player.infer_language(g.user)
+        except Exception as e:
+            print(f"[GDA] Error inferring language for {username}: {e}")
+            return jsonify({
+                "error": "500",
+                "message": "Could not infer language",
+            }), 500
 
     if player.language != "german":
         print(f"[GDA] {uuid} ({username}): Non-German: {player.language}")
