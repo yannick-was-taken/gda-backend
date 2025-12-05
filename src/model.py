@@ -87,9 +87,9 @@ class Player:
         self.was_banned = profile.get("was_banned", False)
 
     def language_source(self) -> str:
-        if infer_state == PlayerInferState.ALLOWLIST:
+        if self.infer_state == PlayerInferState.ALLOWLIST:
             return "database"
-        elif infer_state == PlayerInferState.BLOCKLIST:
+        elif self.infer_state == PlayerInferState.BLOCKLIST:
             return "blocklist"
         else:
             return "infer"
