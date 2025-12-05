@@ -153,18 +153,17 @@ class Player:
                 cost += PRICE_PER_1M_OUTPUT * data["usage"]["completion_tokens"] / 1000000
                 GlobalStats.total_cost += cost
                 checker.total_cost += cost
-            else:
-                cost = 0.0
 
-            print(f"[GDA] OpenAI reported '{reply}' for '{self.last_name}' [-${cost:.2f} Rente für Rayen]")
+            print(f"[GDA] OpenAI reported '{reply}' for '{self.last_name}'")
             parts = reply.split("|", 1)
+            lang = parts[0].strip()
 
-            if parts[0] == "german" and self.language != "german":
+            if lang == "german" and self.language != "german":
                 GlobalStats.total_german += 1
                 checker.total_german += 1
-            self.language = parts[0]
+            self.language = lang
             if len(parts) == 2:
-                self.infer_reason = parts[1]
+                self.infer_reason = parts[1].strip()
 
     def dump(self):
         return {
