@@ -119,51 +119,47 @@ class Player:
         return False
 
     async def infer_language(self, checker: User) -> None:
-        if self.infer_state == PlayerInferState.ALLOWLIST:
-            self.language = "german"
-            self.infer_reason = ""
-        elif self.infer_state == PlayerInferState.BLOCKLIST:
-            self.language = "unknown"
-            self.infer_reason = ""
-        else:
-            headers = {
-                "Authorization": f"Bearer {Config.open_ai_key}",
-                "Content-Type": "application/json",
-            }
-            data = {
-                "model": "gpt-4.1-nano",
-                "messages": [{
-                    "role": "user",
-                    "content": f"You are given the user name '{self.last_name}'. Determine the language the user name is written in, formatted like e.g. 'dutch | <reasoning>'. Give a very short reason for the decision in german. If the language cannot be determined with high confidence, output only 'unknown'.",
-                }],
-                "temperature": 0,
-            }
+        if self.infer_state != PlayerInferState.INFER:
+            return
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(OPEN_AI, json=data, headers=headers) as resp:
-                    if resp.status != 200:
-                        txt = await resp.text()
-                        print(f"[GDA] {OPEN_AI} reported HTTP {resp.status} with {txt}")
-                        raise Exception("language inferring failed")
-                    data = await resp.json()
-            reply = data["choices"][0]["message"]["content"]
+        headers = {
+            "Authorization": f"Bearer {Config.open_ai_key}",
+            "Content-Type": "application/json",
+        }
+        data = {
+            "model": "gpt-4.1-nano",
+            "messages": [{
+                "role": "user",
+                "content": f"You are given the user name '{self.last_name}'. Determine the language the user name is written in, formatted like e.g. 'dutch | <reasoning>'. Give a very short reason for the decision in german. If the language cannot be determined with high confidence, output only 'unknown'.",
+            }],
+            "temperature": 0,
+        }
 
-            if "usage" in data:
-                cost = PRICE_PER_1M_INPUT * data["usage"]["prompt_tokens"] / 1000000
-                cost += PRICE_PER_1M_OUTPUT * data["usage"]["completion_tokens"] / 1000000
-                GlobalStats.total_cost += cost
-                checker.total_cost += cost
+        async with aiohttp.ClientSession() as session:
+            async with session.post(OPEN_AI, json=data, headers=headers) as resp:
+                if resp.status != 200:
+                    txt = await resp.text()
+                    print(f"[GDA] {OPEN_AI} reported HTTP {resp.status} with {txt}")
+                    raise Exception("language inferring failed")
+                data = await resp.json()
+        reply = data["choices"][0]["message"]["content"]
 
-            print(f"[GDA] OpenAI reported '{reply}' for '{self.last_name}'")
-            parts = reply.split("|", 1)
-            lang = parts[0].strip()
+        if "usage" in data:
+            cost = PRICE_PER_1M_INPUT * data["usage"]["prompt_tokens"] / 1000000
+            cost += PRICE_PER_1M_OUTPUT * data["usage"]["completion_tokens"] / 1000000
+            GlobalStats.total_cost += cost
+            checker.total_cost += cost
 
-            if lang == "german" and self.language != "german":
-                GlobalStats.total_german += 1
-                checker.total_german += 1
-            self.language = lang
-            if len(parts) == 2:
-                self.infer_reason = parts[1].strip()
+        print(f"[GDA] OpenAI reported '{reply}' for '{self.last_name}'")
+        parts = reply.split("|", 1)
+        lang = parts[0].strip()
+
+        if lang == "german" and self.language != "german":
+            GlobalStats.total_german += 1
+            checker.total_german += 1
+        self.language = lang
+        if len(parts) == 2:
+            self.infer_reason = parts[1].strip()
 
     def dump(self):
         return {
