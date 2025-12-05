@@ -152,7 +152,7 @@ class Player:
 
         print(f"[GDA] OpenAI reported '{reply}' for '{self.last_name}'")
         parts = reply.split("|", 1)
-        lang = parts[0].strip()
+        lang = parts[0].strip().lower()
 
         if lang == "german" and self.language != "german":
             GlobalStats.total_german += 1

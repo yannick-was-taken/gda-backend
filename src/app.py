@@ -69,6 +69,13 @@ async def stats():
 @app.route("/check/<uuid>/<username>")
 @check_permissions()
 async def check(uuid, username):
+    uuid = uuid.replace("-", "").lower()
+    if len(uuid) != 32 or len(username) < 2 or len(username) > 16:
+        return jsonify({
+            "error": "400",
+            "message": "invalid uuid/username",
+        }), 400
+
     if uuid in Player.ALL:
         player = Player.ALL[uuid]
         if player.last_name != username:
