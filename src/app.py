@@ -122,6 +122,7 @@ async def blocklist(uuid, username):
 @check_permissions()
 @verify_uuid_username
 async def check(uuid, username):
+    first_check = False
     if uuid in Player.ALL:
         player = Player.ALL[uuid]
         if player.last_name != username:
@@ -137,6 +138,7 @@ async def check(uuid, username):
                 }), 500
     else:
         print(f"[GDA] {uuid} ({username}): First check")
+        first_check = True
         GlobalStats.total_checks += 1
         g.user.total_checks += 1
 
@@ -159,6 +161,7 @@ async def check(uuid, username):
                 "source": player.language_source(),
                 "reason": player.infer_reason,
             },
+            "first_check": first_check,
         })
 
     try:
@@ -178,6 +181,7 @@ async def check(uuid, username):
                 "reason": player.infer_reason,
             },
             "banned": True,
+            "first_check": first_check,
         })
 
     now = int(time.time())
@@ -191,6 +195,7 @@ async def check(uuid, username):
             },
             "banned": False,
             "cooldown": player.cooldown_since + COOLDOWN_TIME - now,
+            "first_check": first_check,
         })
     player.cooldown_since = now
 
@@ -203,6 +208,7 @@ async def check(uuid, username):
             },
             "banned": False,
             "cooldown": 0,
+            "first_check": first_check,
     })
 
 @app.before_serving
