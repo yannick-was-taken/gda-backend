@@ -35,6 +35,18 @@ def check_permissions(*perms):
         return w2
     return w1
 
+def verify_uuid_username(f):
+    async def w(uuid, username, *args, **kwargs):
+        uuid = uuid.replace("-", "").lower()
+        if len(uuid) != 32 or len(username) < 2 or len(username) > 16:
+            return jsonify({
+                "error": 400,
+                "message": "invalid uuid/username",
+            }), 400
+        return await f(uuid=uuid, username=username, *args, **kwargs)
+    w.__name__ = f.__name__
+    return w
+
 @app.route("/")
 async def index():
     return "https://www.youtube.com/watch?v=3X-iqFRGqbc"
@@ -68,14 +80,8 @@ async def stats():
 
 @app.post("/allowlist/<uuid>/<username>")
 @check_permissions("allowlist")
+@verify_uuid_username
 async def allowlist(uuid, username):
-    uuid = uuid.replace("-", "").lower()
-    if len(uuid) != 32 or len(username) < 2 or len(username) > 16:
-        return jsonify({
-            "error": 400,
-            "message": "invalid uuid/username",
-        }), 400
-
     reason = await request.get_data()
     reason = reason.decode("utf-8").strip()[:128]
 
@@ -94,14 +100,8 @@ async def allowlist(uuid, username):
 
 @app.post("/blocklist/<uuid>/<username>")
 @check_permissions("blocklist")
+@verify_uuid_username
 async def blocklist(uuid, username):
-    uuid = uuid.replace("-", "").lower()
-    if len(uuid) != 32 or len(username) < 2 or len(username) > 16:
-        return jsonify({
-            "error": 400,
-            "message": "invalid uuid/username",
-        }), 400
-
     reason = await request.get_data()
     reason = reason.decode("utf-8").strip()[:128]
 
@@ -120,14 +120,8 @@ async def blocklist(uuid, username):
 
 @app.route("/check/<uuid>/<username>")
 @check_permissions()
+@verify_uuid_username
 async def check(uuid, username):
-    uuid = uuid.replace("-", "").lower()
-    if len(uuid) != 32 or len(username) < 2 or len(username) > 16:
-        return jsonify({
-            "error": 400,
-            "message": "invalid uuid/username",
-        }), 400
-
     if uuid in Player.ALL:
         player = Player.ALL[uuid]
         if player.last_name != username:
