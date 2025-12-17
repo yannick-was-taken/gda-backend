@@ -145,17 +145,21 @@ async def put_user(name):
             "enabled": data["enabled"],
         })
         User.ALL.append(found)
+
+        permstr = ", ".join(found.perms)
+        print(f"[GDA] New user created: Name: {name}, Perms: [{permstr}], Guild: {found.guild}, Enabled: {found.enabled} (by {g.user.name})")
     else:
         if found.guild != g.user.guild and found.guild != -1:
             if not g.user.has_perm("manage_all_guilds"):
                 return jsonify({"error": 403, "message": "you cannot modify users from this guild"}), 403
-        for perm in found.permissions:
+        for perm in found.perms:
             if not g.user.has_perm(perm):
                 return jsonify({"error": 403, "message": "you cannot modify this user"}), 403
-        found.permissions = data["permissions"]
+        found.perms = data["permissions"]
         found.key = data["key"]
         found.guild = data["guild"]
         found.enabled = data["enabled"]
+        print(f"[GDA] User updated: Name: {name}, Perms: [{permstr}], Guild: {guild_id}, Enabled: {enabled_state} (by {g.user.name})")
     return jsonify({"success": True, "key": data["key"]})
 
 @app.post("/allowlist/<uuid>/<username>")
@@ -178,7 +182,7 @@ async def allowlist(uuid, username):
     player.infer_state = PlayerInferState.ALLOWLIST
     player.language = "german"
     player.infer_reason = reason
-    print(f"[GDA] {uuid} ({username}): Added to allow list: '{reason}'")
+    print(f"[GDA] {uuid} ({username}): Added to allow list: '{reason}' by {g.user.name}")
     return jsonify({"success": True})
 
 @app.post("/blocklist/<uuid>/<username>")
@@ -198,7 +202,7 @@ async def blocklist(uuid, username):
     player.infer_state = PlayerInferState.BLOCKLIST
     player.language = "unknown"
     player.infer_reason = reason
-    print(f"[GDA] {uuid} ({username}): Added to block list: '{reason}'")
+    print(f"[GDA] {uuid} ({username}): Added to block list: '{reason}' by {g.user.name}")
     return jsonify({"success": True})
 
 @app.route("/check/<uuid>/<username>")
