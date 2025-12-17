@@ -104,7 +104,7 @@ async def put_user(name):
         return jsonify({"error": 400, "message": "invalid body"}), 400
 
     if "guild" in data:
-        if g.user.guild != data["guild"]:
+        if g.user.guild != data["guild"] and data["guild"] != -1:
             if not g.user.has_perm("manage_all_guilds"):
                 return jsonify({"error": 403, "message": "forbidden guild"}), 403
             if not isinstance(data["guild"], int):
@@ -146,6 +146,9 @@ async def put_user(name):
         })
         User.ALL.append(found)
     else:
+        if found.guild != g.user.guild and found.guild != -1:
+            if not g.user.has_perm("manage_all_guilds"):
+                return jsonify({"error": 403, "message": "you cannot modify users from this guild"}), 403
         for perm in found.permissions:
             if not g.user.has_perm(perm):
                 return jsonify({"error": 403, "message": "you cannot modify this user"}), 403
