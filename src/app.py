@@ -159,6 +159,7 @@ async def put_user(name):
         found.key = data["key"]
         found.guild = data["guild"]
         found.enabled = data["enabled"]
+        permstr = ", ".join(found.perms)
         print(f"[GDA] User updated: Name: {name}, Perms: [{permstr}], Guild: {guild_id}, Enabled: {enabled_state} (by {g.user.name})")
     return jsonify({"success": True, "key": data["key"]})
 
